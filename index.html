@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Biomas do Brasil</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Arimo:ital,wght@0,400..700;1,400..700&family=Bree+Serif&family=Mochiy+Pop+P+One&family=Shrikhand&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/header.js"></script>
+    <script src="js/biomaInfo.js"></script>
+    <script src="geojson/brazil_biomes.geojson.js"></script>
+</head>
+<style>
+    html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+    }
+
+    .site-header {
+        padding-top: 20px;
+        height: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        position: relative;
+    }
+
+    .biomas-section {
+        height: calc(100vh - 120px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .map-container {
+        width: 99%;
+        height: 95%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #map {
+        width: 100%;
+        height: 100%;
+        border-radius: 12px;
+        box-shadow: 0 0 10px rgba(0,0,0,0.2);
+    }
+
+</style>
+<body>
+<header class="site-header">
+    <h2 class="mochiy-pop-p-one-regular" style="color: #005727">Biomas do Brasil</h2>
+</header>
+
+<section id="biomas" class="biomas-section">
+    <div class="map-container">
+        <div id="map"></div>
+    </div>
+</section>
+    <!-- Modal para exibição de informações do bioma -->
+    <div id="biomaModal" class="modal">
+        <div class="modal-content" id="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <div class="modal-header" id="modal-header">
+                <h2 id="modal-title">Nome do Bioma</h2>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Conteúdo será preenchido dinamicamente -->
+            </div>
+        </div>
+    </div>
+    <script>
+        // Mapa base
+        var map = L.map('map', {
+            maxBounds: [[-35, -75], [6, -30]], // [sul-oeste], [norte-leste]
+            maxBoundsViscosity: 1.0 // impede o usuário de sair dos limites
+        }).setView([-14.235, -51.9253], 4);
+
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const biomaColors = {
+            "Amazônia": "#005227",
+            "Cerrado": "#ff3131",
+            "Caatinga": "#ff914d",
+            "Mata Atlântica": "#0b6ef5",
+            "Pampa": "#ffde59",
+            "Pantanal": "#7ed957"
+        };
+
+        function openBiomaModal(bioma) {
+            const info = window.biomaInfo[bioma];
+            if (!info) return;
+
+            const modal = document.getElementById('biomaModal');
+            const modalContainer = document.getElementById('modal-content');
+            const modalHeader = document.getElementById('modal-header');
+            const modalTitle = document.getElementById('modal-title');
+            const modalBody = document.getElementById('modal-body');
+
+            modalContainer.style.borderColor = info.cor;
+            modalHeader.style.borderColor = info.cor;
+            modalTitle.style.color = info.cor;
+
+            modalTitle.innerText = info.titulo.toUpperCase();
+
+            let modalHtml = `
+                <div class="bioma-images">
+                    <img src="${info.imagens[0]}" alt="Imagem 1 do bioma ${info.titulo}">
+                    <img src="${info.imagens[1]}" alt="Imagem 2 do bioma ${info.titulo}">
+                </div>
+
+                <div class="bioma-description">
+                    <p>${info.descricao}</p>
+                </div>
+
+                <div class="especies-container">
+            `;
+
+            info.especies.forEach(especie => {
+                modalHtml += `
+                    <div class="especie-card">
+                        <img src="${especie.imagem}" alt="${especie.nome}">
+                        <div class="especie-nome">${especie.nome}</div>
+                        <div class="especie-nome-cientifico">(${especie.nomeCientifico})</div>
+                    </div>
+                `;
+            });
+
+            modalHtml += `</div>`;
+
+            modalBody.innerHTML = modalHtml;
+
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('biomaModal');
+            modal.style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('biomaModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+
+        // Adicionar GeoJSON ao mapa com os estilos e interatividade
+        L.geoJSON(window.biomasGeoJSON, {
+            style: function(feature) {
+                const bioma = feature.properties.name;
+                return {
+                    fillColor: biomaColors[bioma] || "#ccc",
+                    color: "#fff",
+                    weight: 1,
+                    fillOpacity: 0.8
+                };
+            },
+            onEachFeature: function(feature, layer) {
+                const bioma = feature.properties.name;
+
+                // Adicionar tooltip ao passar o mouse
+                layer.bindTooltip(bioma);
+
+                // Adicionar evento de clique para abrir o modal com informações do bioma
+                layer.on("click", function() {
+                    openBiomaModal(bioma);
+                });
+            }
+        }).addTo(map);
+
+        // Adicionar legenda ao mapa
+        const legend = L.control({ position: 'bottomleft' });
+
+        legend.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = '<h4>Biomas</h4>';
+
+            for (const bioma in biomaColors) {
+                div.innerHTML += `
+                    <div class="legend-item">
+                        <div class="color-box" style="background-color: ${biomaColors[bioma]}"></div>
+                        <span>${bioma}</span>
+                    </div>
+                `;
+            }
+
+            return div;
+        };
+
+        legend.addTo(map);
+    </script>
+<script src="js/chatbot.js"></script>
+</body>
+</html>
